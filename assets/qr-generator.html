@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QRコード生成</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif;
+      background: #f4f6fb;
+      color: #1a1a1a;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #1e3a5f;
+      color: #fff;
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    header h1 { font-size: 17px; font-weight: 700; }
+    header nav a {
+      color: rgba(255,255,255,.75);
+      text-decoration: none;
+      font-size: 13px;
+      margin-left: 16px;
+    }
+    header nav a:hover { color: #fff; }
+    .logout-btn {
+      background: rgba(255,255,255,.15);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 6px 14px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .logout-btn:hover { background: rgba(255,255,255,.25); }
+
+    main { padding: 24px; max-width: 900px; margin: 0 auto; }
+
+    .layout { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    @media (max-width: 640px) { .layout { grid-template-columns: 1fr; } }
+
+    .card {
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.06);
+      padding: 24px;
+    }
+
+    h2 { font-size: 16px; font-weight: 700; margin-bottom: 16px; }
+
+    .field { margin-bottom: 16px; }
+    .field label { display: block; font-size: 12px; font-weight: 600; color: #666; margin-bottom: 5px; }
+    .field select {
+      width: 100%;
+      border: 1px solid #ddd;
+      border-radius: 7px;
+      padding: 9px 12px;
+      font-size: 14px;
+      font-family: inherit;
+      outline: none;
+      background: #fff;
+    }
+    .field select:focus { border-color: #4f8ef7; }
+
+    .url-preview {
+      background: #f8f9fc;
+      border: 1px solid #e0e4f0;
+      border-radius: 7px;
+      padding: 10px 14px;
+      font-size: 13px;
+      font-family: monospace;
+      color: #3730a3;
+      word-break: break-all;
+      min-height: 42px;
+    }
+
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 7px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn-primary { background: #2563eb; color: #fff; }
+    .btn-primary:hover { background: #1d4ed8; }
+    .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-success { background: #059669; color: #fff; }
+    .btn-success:hover { background: #047857; }
+    .btn-outline { background: #fff; color: #333; border: 1px solid #ddd; }
+    .btn-outline:hover { background: #f5f5f5; }
+
+    .btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+
+    /* QR表示エリア */
+    .qr-area {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 280px;
+    }
+
+    .qr-placeholder {
+      color: #ccc;
+      font-size: 13px;
+      text-align: center;
+    }
+
+    #qr-canvas {
+      display: none;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+    }
+
+    .qr-label {
+      margin-top: 12px;
+      font-size: 13px;
+      color: #555;
+      text-align: center;
+      font-weight: 600;
+    }
+
+    /* 印刷用 */
+    .print-grid {
+      display: none;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 16px;
+      margin-top: 24px;
+    }
+    .print-item {
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 16px;
+      text-align: center;
+      background: #fff;
+    }
+    .print-item canvas { max-width: 100%; }
+    .print-item .item-label { font-size: 12px; font-weight: 600; margin-top: 8px; color: #333; }
+    .print-item .item-sub  { font-size: 11px; color: #888; margin-top: 2px; }
+
+    @media print {
+      header, .layout, h2, .btn-row { display: none !important; }
+      .print-grid { display: grid !important; }
+      body { background: #fff; }
+    }
+
+    /* ログイン画面 */
+    .login-wrap {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+    .login-card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 40px 32px;
+      width: 100%;
+      max-width: 380px;
+      box-shadow: 0 2px 12px rgba(0,0,0,.08);
+    }
+    .login-card h2 { font-size: 20px; margin-bottom: 24px; }
+    .login-field { margin-bottom: 16px; }
+    .login-field label { display: block; font-size: 13px; font-weight: 600; color: #555; margin-bottom: 6px; }
+    .login-field input {
+      width: 100%;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 15px;
+      font-family: inherit;
+      outline: none;
+    }
+    .login-btn {
+      width: 100%;
+      padding: 12px;
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 8px;
+    }
+    .login-error { color: #dc2626; font-size: 13px; margin-top: 10px; }
+
+    #app { display: none; }
+  </style>
+</head>
+<body>
+
+<!-- ログイン画面 -->
+<div class="login-wrap" id="login-wrap">
+  <div class="login-card">
+    <h2>管理者ログイン</h2>
+    <div class="login-field">
+      <label>メールアドレス</label>
+      <input type="email" id="login-email" placeholder="admin@example.com">
+    </div>
+    <div class="login-field">
+      <label>パスワード</label>
+      <input type="password" id="login-password" placeholder="••••••••">
+    </div>
+    <button class="login-btn" id="login-btn">ログイン</button>
+    <div class="login-error" id="login-error"></div>
+  </div>
+</div>
+
+<!-- 管理画面 -->
+<div id="app">
+  <header>
+    <h1>📦 発注管理ダッシュボード</h1>
+    <div style="display:flex;align-items:center;gap:12px">
+      <nav>
+        <a href="../admin/index.html">発注一覧</a>
+        <a href="../admin/products.html">商品マスタ</a>
+        <a href="qr-generator.html">QR生成</a>
+      </nav>
+      <button class="logout-btn" id="logout-btn">ログアウト</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="layout">
+      <!-- 左：設定パネル -->
+      <div class="card">
+        <h2>QRコード設定</h2>
+
+        <div class="field">
+          <label>店舗 *</label>
+          <select id="sel-store">
+            <option value="">店舗を選んでください</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>商品（省略すると全商品から選択するフォームになります）</label>
+          <select id="sel-product">
+            <option value="">指定しない（全商品）</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>生成されるURL（確認用）</label>
+          <div class="url-preview" id="url-preview">—</div>
+        </div>
+
+        <div class="btn-row">
+          <button class="btn btn-primary" id="generate-btn">QRコード生成</button>
+        </div>
+
+        <!-- 一括生成 -->
+        <hr style="margin:24px 0;border:none;border-top:1px solid #f0f0f0">
+        <h2>一括生成（全店舗 × 全商品）</h2>
+        <p style="font-size:13px;color:#888;margin-bottom:12px">全店舗・全商品の組み合わせのQRコードをまとめて印刷します。</p>
+        <div class="btn-row">
+          <button class="btn btn-outline" id="bulk-generate-btn">一括生成して印刷</button>
+        </div>
+      </div>
+
+      <!-- 右：QRコード表示 -->
+      <div class="card qr-area" id="qr-area">
+        <div class="qr-placeholder" id="qr-placeholder">
+          <div style="font-size:48px;margin-bottom:12px">📱</div>
+          店舗と商品を選んで<br>「QRコード生成」を押してください
+        </div>
+        <canvas id="qr-canvas"></canvas>
+        <div class="qr-label" id="qr-label" style="display:none"></div>
+        <div class="btn-row" id="qr-btns" style="display:none;justify-content:center">
+          <button class="btn btn-success" id="download-btn">PNG ダウンロード</button>
+          <button class="btn btn-outline" id="print-btn">印刷</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 一括印刷グリッド（印刷時のみ表示） -->
+    <div class="print-grid" id="print-grid"></div>
+  </main>
+</div>
+
+<script>
+  const SUPABASE_URL  = 'https://pwuhhdzomaojjvwmjizw.supabase.co'
+  const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3dWhoZHpvbWFvamp2d21qaXp3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyODUxNjksImV4cCI6MjA5MTg2MTE2OX0.3BaGea6Th9Z6k-KMkQFXC3wZWt8b1zqqLXlGPOecA-Y'
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON)
+
+  const BASE_URL = 'https://kawakamia24.github.io/wholesale-order/'
+
+  let stores   = []
+  let products = []
+
+  // ── 認証 ──────────────────────────────────────────────────
+  async function checkAuth() {
+    const { data: { session } } = await sb.auth.getSession()
+    if (session) showApp()
+    sb.auth.onAuthStateChange((_, session) => {
+      if (session) showApp()
+      else showLogin()
+    })
+  }
+
+  function showApp() {
+    document.getElementById('login-wrap').style.display = 'none'
+    document.getElementById('app').style.display = 'block'
+    loadData()
+  }
+  function showLogin() {
+    document.getElementById('login-wrap').style.display = 'flex'
+    document.getElementById('app').style.display = 'none'
+  }
+
+  document.getElementById('login-btn').addEventListener('click', async () => {
+    const email    = document.getElementById('login-email').value.trim()
+    const password = document.getElementById('login-password').value
+    const errEl    = document.getElementById('login-error')
+    errEl.textContent = ''
+    const { error } = await sb.auth.signInWithPassword({ email, password })
+    if (error) errEl.textContent = 'ログインに失敗しました。'
+  })
+  document.getElementById('login-password').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('login-btn').click()
+  })
+  document.getElementById('logout-btn').addEventListener('click', () => sb.auth.signOut())
+
+  // ── データ読み込み ─────────────────────────────────────────
+  async function loadData() {
+    const [{ data: s }, { data: p }] = await Promise.all([
+      sb.from('stores').select('id,name').eq('active', true).order('name'),
+      sb.from('products').select('id,name').eq('active', true).order('name'),
+    ])
+    stores   = s || []
+    products = p || []
+
+    const storeEl = document.getElementById('sel-store')
+    stores.forEach(st => {
+      const opt = document.createElement('option')
+      opt.value = st.id
+      opt.textContent = st.name
+      storeEl.appendChild(opt)
+    })
+
+    const productEl = document.getElementById('sel-product')
+    products.forEach(pr => {
+      const opt = document.createElement('option')
+      opt.value = pr.id
+      opt.textContent = pr.name
+      productEl.appendChild(opt)
+    })
+  }
+
+  // ── URL プレビュー更新 ─────────────────────────────────────
+  function buildUrl(storeId, productId) {
+    const params = new URLSearchParams()
+    if (storeId)   params.set('store', storeId)
+    if (productId) params.set('product', productId)
+    return BASE_URL + (params.toString() ? '?' + params.toString() : '')
+  }
+
+  function updatePreview() {
+    const storeId   = document.getElementById('sel-store').value
+    const productId = document.getElementById('sel-product').value
+    document.getElementById('url-preview').textContent =
+      storeId ? buildUrl(storeId, productId) : '—'
+  }
+
+  document.getElementById('sel-store').addEventListener('change', updatePreview)
+  document.getElementById('sel-product').addEventListener('change', updatePreview)
+
+  // ── QRコード生成 ───────────────────────────────────────────
+  document.getElementById('generate-btn').addEventListener('click', async () => {
+    const storeId   = document.getElementById('sel-store').value
+    const productId = document.getElementById('sel-product').value
+
+    if (!storeId) { alert('店舗を選んでください。'); return }
+
+    const url = buildUrl(storeId, productId)
+    const canvas = document.getElementById('qr-canvas')
+
+    await QRCode.toCanvas(canvas, url, { width: 240, margin: 2, color: { dark: '#1e3a5f', light: '#ffffff' } })
+
+    document.getElementById('qr-placeholder').style.display = 'none'
+    canvas.style.display = 'block'
+
+    const storeName   = stores.find(s => s.id === storeId)?.name || storeId
+    const productName = productId ? (products.find(p => p.id === productId)?.name || productId) : '全商品'
+    const label = `${storeName} / ${productName}`
+
+    document.getElementById('qr-label').textContent = label
+    document.getElementById('qr-label').style.display = 'block'
+    document.getElementById('qr-btns').style.display  = 'flex'
+
+    // ダウンロードボタン設定
+    document.getElementById('download-btn').onclick = () => {
+      const a = document.createElement('a')
+      a.download = `qr_${storeId}_${productId || 'all'}.png`
+      a.href = canvas.toDataURL('image/png')
+      a.click()
+    }
+  })
+
+  document.getElementById('print-btn').addEventListener('click', () => window.print())
+
+  // ── 一括生成 ───────────────────────────────────────────────
+  document.getElementById('bulk-generate-btn').addEventListener('click', async () => {
+    if (stores.length === 0 || products.length === 0) {
+      alert('店舗・商品データがありません。')
+      return
+    }
+
+    const grid = document.getElementById('print-grid')
+    grid.innerHTML = ''
+    grid.style.display = 'grid'
+
+    for (const store of stores) {
+      for (const product of products) {
+        const url = buildUrl(store.id, product.id)
+
+        const item = document.createElement('div')
+        item.className = 'print-item'
+
+        const canvas = document.createElement('canvas')
+        await QRCode.toCanvas(canvas, url, { width: 180, margin: 1, color: { dark: '#1e3a5f', light: '#ffffff' } })
+
+        const label = document.createElement('div')
+        label.className = 'item-label'
+        label.textContent = store.name
+
+        const sub = document.createElement('div')
+        sub.className = 'item-sub'
+        sub.textContent = product.name
+
+        item.appendChild(canvas)
+        item.appendChild(label)
+        item.appendChild(sub)
+        grid.appendChild(item)
+      }
+    }
+
+    window.print()
+  })
+
+  checkAuth()
+</script>
+</body>
+</html>

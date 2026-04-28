@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>発注管理ダッシュボード</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif;
+      background: #f4f6fb;
+      color: #1a1a1a;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #1e3a5f;
+      color: #fff;
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    header h1 { font-size: 17px; font-weight: 700; }
+    header nav a {
+      color: rgba(255,255,255,.75);
+      text-decoration: none;
+      font-size: 13px;
+      margin-left: 16px;
+    }
+    header nav a:hover { color: #fff; }
+
+    .logout-btn {
+      background: rgba(255,255,255,.15);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 6px 14px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .logout-btn:hover { background: rgba(255,255,255,.25); }
+
+    main { padding: 24px; max-width: 1200px; margin: 0 auto; }
+
+    .filters {
+      background: #fff;
+      border-radius: 10px;
+      padding: 16px 20px;
+      margin-bottom: 20px;
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      box-shadow: 0 1px 4px rgba(0,0,0,.06);
+    }
+
+    .filter-group { display: flex; flex-direction: column; gap: 4px; }
+    .filter-group label { font-size: 12px; color: #888; font-weight: 600; }
+
+    select, input[type="date"] {
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      padding: 7px 10px;
+      font-size: 14px;
+      font-family: inherit;
+      outline: none;
+      background: #fff;
+    }
+    select:focus, input[type="date"]:focus { border-color: #4f8ef7; }
+
+    .btn {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn-primary { background: #2563eb; color: #fff; }
+    .btn-primary:hover { background: #1d4ed8; }
+    .btn-outline { background: #fff; color: #333; border: 1px solid #ddd; }
+    .btn-outline:hover { background: #f5f5f5; }
+
+    .table-wrap {
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.06);
+      overflow: auto;
+    }
+
+    table { width: 100%; border-collapse: collapse; min-width: 700px; }
+
+    thead th {
+      background: #f8f9fc;
+      font-size: 12px;
+      font-weight: 700;
+      color: #555;
+      padding: 12px 16px;
+      text-align: left;
+      border-bottom: 1px solid #e8e8e8;
+    }
+
+    tbody tr { border-bottom: 1px solid #f0f0f0; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: #fafbff; }
+
+    tbody td { padding: 12px 16px; font-size: 14px; vertical-align: middle; }
+
+    .badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .badge-pending   { background: #fef3c7; color: #92400e; }
+    .badge-confirmed { background: #d1fae5; color: #065f46; }
+    .badge-shipped   { background: #dbeafe; color: #1e40af; }
+
+    .status-select {
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      padding: 5px 8px;
+      font-size: 13px;
+      cursor: pointer;
+      background: #fff;
+    }
+
+    .note-text { color: #888; font-size: 13px; max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .empty { text-align: center; padding: 48px; color: #aaa; font-size: 14px; }
+
+    /* ログイン画面 */
+    .login-wrap {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      background: #f4f6fb;
+    }
+    .login-card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 40px 32px;
+      width: 100%;
+      max-width: 380px;
+      box-shadow: 0 2px 12px rgba(0,0,0,.08);
+    }
+    .login-card h2 { font-size: 20px; margin-bottom: 24px; }
+
+    .field { margin-bottom: 16px; }
+    .field label { display: block; font-size: 13px; font-weight: 600; color: #555; margin-bottom: 6px; }
+    .field input {
+      width: 100%;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 15px;
+      font-family: inherit;
+      outline: none;
+    }
+    .field input:focus { border-color: #4f8ef7; }
+    .login-btn {
+      width: 100%;
+      padding: 12px;
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 8px;
+    }
+    .login-btn:hover { background: #1d4ed8; }
+    .login-error { color: #dc2626; font-size: 13px; margin-top: 10px; }
+
+    #app { display: none; }
+  </style>
+</head>
+<body>
+
+<!-- ログイン画面 -->
+<div class="login-wrap" id="login-wrap">
+  <div class="login-card">
+    <h2>管理者ログイン</h2>
+    <div class="field">
+      <label>メールアドレス</label>
+      <input type="email" id="login-email" placeholder="admin@example.com">
+    </div>
+    <div class="field">
+      <label>パスワード</label>
+      <input type="password" id="login-password" placeholder="••••••••">
+    </div>
+    <button class="login-btn" id="login-btn">ログイン</button>
+    <div class="login-error" id="login-error"></div>
+  </div>
+</div>
+
+<!-- 管理画面 -->
+<div id="app">
+  <header>
+    <h1>📦 発注管理ダッシュボード</h1>
+    <div style="display:flex;align-items:center;gap:12px">
+      <nav>
+        <a href="index.html">発注一覧</a>
+        <a href="products.html">商品マスタ</a>
+        <a href="../assets/qr-generator.html">QR生成</a>
+      </nav>
+      <button class="logout-btn" id="logout-btn">ログアウト</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="filters">
+      <div class="filter-group">
+        <label>店舗</label>
+        <select id="filter-store"><option value="">すべて</option></select>
+      </div>
+      <div class="filter-group">
+        <label>商品</label>
+        <select id="filter-product"><option value="">すべて</option></select>
+      </div>
+      <div class="filter-group">
+        <label>ステータス</label>
+        <select id="filter-status">
+          <option value="">すべて</option>
+          <option value="pending">pending</option>
+          <option value="confirmed">confirmed</option>
+          <option value="shipped">shipped</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>開始日</label>
+        <input type="date" id="filter-from">
+      </div>
+      <div class="filter-group">
+        <label>終了日</label>
+        <input type="date" id="filter-to">
+      </div>
+      <button class="btn btn-primary" id="search-btn">絞り込み</button>
+      <button class="btn btn-outline" id="reset-btn">リセット</button>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>発注日時</th>
+            <th>店舗</th>
+            <th>商品</th>
+            <th>数量</th>
+            <th>単価</th>
+            <th>小計</th>
+            <th>ステータス</th>
+            <th>備考</th>
+          </tr>
+        </thead>
+        <tbody id="orders-body">
+          <tr><td colspan="8" class="empty">読み込み中...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+</div>
+
+<script>
+  const SUPABASE_URL  = 'https://pwuhhdzomaojjvwmjizw.supabase.co'
+  const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3dWhoZHpvbWFvamp2d21qaXp3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyODUxNjksImV4cCI6MjA5MTg2MTE2OX0.3BaGea6Th9Z6k-KMkQFXC3wZWt8b1zqqLXlGPOecA-Y'
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON)
+
+  // ── 認証チェック ──────────────────────────────────────────
+  async function checkAuth() {
+    const { data: { session } } = await sb.auth.getSession()
+    if (session) {
+      showApp()
+    }
+    sb.auth.onAuthStateChange((event, session) => {
+      if (session) showApp()
+      else showLogin()
+    })
+  }
+
+  function showApp() {
+    document.getElementById('login-wrap').style.display = 'none'
+    document.getElementById('app').style.display = 'block'
+    loadFilters()
+    loadOrders()
+  }
+
+  function showLogin() {
+    document.getElementById('login-wrap').style.display = 'flex'
+    document.getElementById('app').style.display = 'none'
+  }
+
+  document.getElementById('login-btn').addEventListener('click', async () => {
+    const email    = document.getElementById('login-email').value.trim()
+    const password = document.getElementById('login-password').value
+    const errEl    = document.getElementById('login-error')
+    errEl.textContent = ''
+
+    const { error } = await sb.auth.signInWithPassword({ email, password })
+    if (error) {
+      errEl.textContent = 'ログインに失敗しました。メールとパスワードを確認してください。'
+    }
+  })
+
+  document.getElementById('login-password').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('login-btn').click()
+  })
+
+  document.getElementById('logout-btn').addEventListener('click', async () => {
+    await sb.auth.signOut()
+  })
+
+  // ── フィルター選択肢の読み込み ────────────────────────────
+  async function loadFilters() {
+    const [{ data: stores }, { data: products }] = await Promise.all([
+      sb.from('stores').select('id,name').order('name'),
+      sb.from('products').select('id,name').order('name'),
+    ])
+
+    const storeEl = document.getElementById('filter-store')
+    ;(stores || []).forEach(s => {
+      const opt = document.createElement('option')
+      opt.value = s.id
+      opt.textContent = s.name
+      storeEl.appendChild(opt)
+    })
+
+    const productEl = document.getElementById('filter-product')
+    ;(products || []).forEach(p => {
+      const opt = document.createElement('option')
+      opt.value = p.id
+      opt.textContent = p.name
+      productEl.appendChild(opt)
+    })
+  }
+
+  // ── 発注一覧の読み込み ────────────────────────────────────
+  async function loadOrders() {
+    const storeId   = document.getElementById('filter-store').value
+    const productId = document.getElementById('filter-product').value
+    const status    = document.getElementById('filter-status').value
+    const fromDate  = document.getElementById('filter-from').value
+    const toDate    = document.getElementById('filter-to').value
+
+    let q = sb
+      .from('wholesale_orders')
+      .select('*, stores(name), products(name, unit, price)')
+      .order('created_at', { ascending: false })
+
+    if (storeId)   q = q.eq('store_id', storeId)
+    if (productId) q = q.eq('product_id', productId)
+    if (status)    q = q.eq('status', status)
+    if (fromDate)  q = q.gte('created_at', fromDate + 'T00:00:00+09:00')
+    if (toDate)    q = q.lte('created_at', toDate   + 'T23:59:59+09:00')
+
+    const { data: orders, error } = await q
+
+    const tbody = document.getElementById('orders-body')
+    if (error) {
+      tbody.innerHTML = `<tr><td colspan="8" class="empty">データの取得に失敗しました</td></tr>`
+      return
+    }
+    if (!orders || orders.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="8" class="empty">発注データがありません</td></tr>`
+      return
+    }
+
+    tbody.innerHTML = orders.map(o => {
+      const store   = o.stores   || {}
+      const product = o.products || {}
+      const subtotal = (product.price || 0) * o.quantity
+      const dt = new Date(o.created_at).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })
+
+      const badgeClass = { pending: 'badge-pending', confirmed: 'badge-confirmed', shipped: 'badge-shipped' }[o.status] || ''
+
+      return `<tr>
+        <td style="white-space:nowrap">${dt}</td>
+        <td>${store.name || o.store_id}</td>
+        <td>${product.name || o.product_id}</td>
+        <td>${o.quantity} ${product.unit || ''}</td>
+        <td>${(product.price || 0).toLocaleString()}円</td>
+        <td>${subtotal.toLocaleString()}円</td>
+        <td>
+          <select class="status-select" data-id="${o.id}" onchange="updateStatus(this)">
+            <option value="pending"   ${o.status==='pending'   ? 'selected':''}>pending</option>
+            <option value="confirmed" ${o.status==='confirmed' ? 'selected':''}>confirmed</option>
+            <option value="shipped"   ${o.status==='shipped'   ? 'selected':''}>shipped</option>
+          </select>
+        </td>
+        <td><span class="note-text" title="${o.note || ''}">${o.note || '—'}</span></td>
+      </tr>`
+    }).join('')
+  }
+
+  async function updateStatus(select) {
+    const id     = select.dataset.id
+    const status = select.value
+    const { error } = await sb.from('wholesale_orders').update({ status }).eq('id', id)
+    if (error) {
+      alert('ステータスの更新に失敗しました。')
+      // 元の値に戻す（再読み込み）
+      loadOrders()
+    }
+  }
+
+  document.getElementById('search-btn').addEventListener('click', loadOrders)
+  document.getElementById('reset-btn').addEventListener('click', () => {
+    document.getElementById('filter-store').value   = ''
+    document.getElementById('filter-product').value = ''
+    document.getElementById('filter-status').value  = ''
+    document.getElementById('filter-from').value    = ''
+    document.getElementById('filter-to').value      = ''
+    loadOrders()
+  })
+
+  checkAuth()
+</script>
+</body>
+</html>

@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>発注フォーム</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif;
+      background: #f5f5f5;
+      color: #1a1a1a;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 2px 12px rgba(0,0,0,.08);
+      padding: 32px 28px;
+      width: 100%;
+      max-width: 480px;
+    }
+
+    .logo {
+      font-size: 13px;
+      color: #888;
+      margin-bottom: 20px;
+      letter-spacing: .05em;
+    }
+
+    h1 {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 24px;
+      color: #111;
+    }
+
+    .field { margin-bottom: 20px; }
+
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: #555;
+      margin-bottom: 6px;
+    }
+
+    .readonly-value {
+      background: #f8f8f8;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 15px;
+      color: #333;
+    }
+
+    input[type="number"], textarea, select {
+      width: 100%;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 15px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color .2s;
+    }
+
+    input[type="number"]:focus, textarea:focus, select:focus {
+      border-color: #4f8ef7;
+    }
+
+    textarea { resize: vertical; min-height: 80px; }
+
+    .btn {
+      display: block;
+      width: 100%;
+      padding: 14px;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background .2s, opacity .2s;
+    }
+
+    .btn-primary {
+      background: #2563eb;
+      color: #fff;
+    }
+    .btn-primary:hover { background: #1d4ed8; }
+    .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+
+    /* モーダル */
+    .overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.45);
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      z-index: 100;
+    }
+    .overlay.open { display: flex; }
+
+    .modal {
+      background: #fff;
+      border-radius: 12px;
+      padding: 28px 24px;
+      width: 100%;
+      max-width: 400px;
+    }
+
+    .modal h2 { font-size: 17px; margin-bottom: 16px; }
+
+    .confirm-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+    .confirm-table td {
+      padding: 6px 0;
+      font-size: 14px;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .confirm-table td:first-child { color: #888; width: 80px; }
+
+    .modal-btns { display: flex; gap: 10px; }
+    .modal-btns .btn { margin: 0; }
+
+    .btn-secondary {
+      background: #f0f0f0;
+      color: #333;
+    }
+    .btn-secondary:hover { background: #e0e0e0; }
+
+    /* 完了画面 */
+    .complete { display: none; text-align: center; }
+    .complete.open { display: block; }
+    .form-area.hidden { display: none; }
+
+    .complete-icon { font-size: 48px; margin-bottom: 16px; }
+    .complete h2 { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+    .complete p { color: #666; font-size: 14px; line-height: 1.6; }
+
+    .summary-box {
+      background: #f8f9ff;
+      border: 1px solid #dbe4ff;
+      border-radius: 8px;
+      padding: 16px;
+      margin: 20px 0;
+      text-align: left;
+    }
+    .summary-box p { font-size: 14px; margin-bottom: 6px; color: #333; }
+    .summary-box p:last-child { margin-bottom: 0; }
+    .summary-box strong { color: #111; }
+
+    /* エラー */
+    .error-card { text-align: center; }
+    .error-card .error-icon { font-size: 40px; margin-bottom: 12px; }
+    .error-card h2 { font-size: 18px; color: #dc2626; margin-bottom: 8px; }
+    .error-card p { color: #666; font-size: 14px; }
+
+    /* セレクト（商品選択） */
+    .product-select-wrap { position: relative; }
+    .product-desc {
+      font-size: 12px;
+      color: #888;
+      margin-top: 6px;
+      min-height: 16px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="card" id="app">
+  <div class="logo">発注システム</div>
+
+  <!-- ローディング -->
+  <p id="loading" style="color:#888;font-size:14px;">読み込み中...</p>
+
+  <!-- エラー表示 -->
+  <div id="error-view" class="error-card" style="display:none">
+    <div class="error-icon">⚠️</div>
+    <h2 id="error-title">エラー</h2>
+    <p id="error-msg"></p>
+  </div>
+
+  <!-- 発注フォーム -->
+  <div id="form-area" class="form-area hidden">
+    <h1>発注フォーム</h1>
+
+    <div class="field">
+      <label>店舗名</label>
+      <div class="readonly-value" id="store-name"></div>
+    </div>
+
+    <div class="field" id="product-field">
+      <label>商品</label>
+      <!-- product パラメータ有り → 固定表示、無し → セレクト -->
+      <div class="readonly-value" id="product-name" style="display:none"></div>
+      <div class="product-select-wrap" id="product-select-wrap" style="display:none">
+        <select id="product-select">
+          <option value="">商品を選んでください</option>
+        </select>
+        <div class="product-desc" id="product-desc"></div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="quantity">数量</label>
+      <input type="number" id="quantity" min="1" max="999" value="1">
+    </div>
+
+    <div class="field">
+      <label for="note">備考（任意）</label>
+      <textarea id="note" placeholder="特記事項があればご記入ください"></textarea>
+    </div>
+
+    <button class="btn btn-primary" id="order-btn">発注する</button>
+  </div>
+
+  <!-- 完了画面 -->
+  <div id="complete-view" class="complete">
+    <div class="complete-icon">✅</div>
+    <h2>発注を受け付けました</h2>
+    <p>ご発注ありがとうございます。<br>内容を確認の上、ご連絡いたします。</p>
+    <div class="summary-box" id="summary-box"></div>
+  </div>
+</div>
+
+<!-- 確認モーダル -->
+<div class="overlay" id="confirm-overlay">
+  <div class="modal">
+    <h2>発注内容の確認</h2>
+    <table class="confirm-table" id="confirm-table"></table>
+    <div class="modal-btns">
+      <button class="btn btn-secondary" id="cancel-btn">戻る</button>
+      <button class="btn btn-primary" id="submit-btn">送信する</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const SUPABASE_URL  = 'https://pwuhhdzomaojjvwmjizw.supabase.co'
+  const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3dWhoZHpvbWFvamp2d21qaXp3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyODUxNjksImV4cCI6MjA5MTg2MTE2OX0.3BaGea6Th9Z6k-KMkQFXC3wZWt8b1zqqLXlGPOecA-Y'
+
+  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON)
+
+  const params     = new URLSearchParams(location.search)
+  const storeId    = params.get('store') || ''
+  const productId  = params.get('product') || ''
+
+  let store   = null
+  let product = null
+  let allProducts = []
+
+  function showError(title, msg) {
+    document.getElementById('loading').style.display = 'none'
+    document.getElementById('error-view').style.display = 'block'
+    document.getElementById('error-title').textContent = title
+    document.getElementById('error-msg').textContent   = msg
+  }
+
+  function formatDate(d) {
+    return d.toLocaleString('ja-JP', {
+      timeZone: 'Asia/Tokyo',
+      year: 'numeric', month: 'long', day: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    })
+  }
+
+  async function init() {
+    if (!storeId) {
+      showError('URLが正しくありません', '店舗IDが指定されていません。QRコードを読み直してください。')
+      return
+    }
+
+    // 店舗情報を取得
+    const { data: storeData, error: storeErr } = await supabase
+      .from('stores')
+      .select('*')
+      .eq('id', storeId)
+      .single()
+
+    if (storeErr || !storeData) {
+      showError('店舗が見つかりません', '登録されていない店舗IDです。QRコードを確認してください。')
+      return
+    }
+    if (!storeData.active) {
+      showError('発注できません', 'この店舗は現在発注が無効になっています。')
+      return
+    }
+    store = storeData
+
+    // 商品情報を取得
+    if (productId) {
+      const { data: productData, error: productErr } = await supabase
+        .from('products')
+        .select('*')
+        .eq('id', productId)
+        .eq('active', true)
+        .single()
+
+      if (productErr || !productData) {
+        showError('商品が見つかりません', '登録されていない商品IDです。QRコードを確認してください。')
+        return
+      }
+      product = productData
+
+      document.getElementById('product-name').textContent = product.name
+      document.getElementById('product-name').style.display = 'block'
+    } else {
+      // 全商品取得してセレクトボックスに表示
+      const { data: productsData } = await supabase
+        .from('products')
+        .select('*')
+        .eq('active', true)
+        .order('name')
+
+      allProducts = productsData || []
+      const sel = document.getElementById('product-select')
+      allProducts.forEach(p => {
+        const opt = document.createElement('option')
+        opt.value = p.id
+        opt.textContent = `${p.name}（${p.price.toLocaleString()}円/${p.unit}）`
+        opt.dataset.desc = p.description || ''
+        sel.appendChild(opt)
+      })
+      sel.addEventListener('change', () => {
+        const opt = sel.options[sel.selectedIndex]
+        document.getElementById('product-desc').textContent = opt.dataset.desc || ''
+        product = allProducts.find(p => p.id === sel.value) || null
+      })
+      document.getElementById('product-select-wrap').style.display = 'block'
+    }
+
+    // フォーム表示
+    document.getElementById('loading').style.display = 'none'
+    document.getElementById('store-name').textContent = store.name
+    document.getElementById('form-area').classList.remove('hidden')
+
+    document.getElementById('order-btn').addEventListener('click', onOrderClick)
+    document.getElementById('cancel-btn').addEventListener('click', () => {
+      document.getElementById('confirm-overlay').classList.remove('open')
+    })
+    document.getElementById('submit-btn').addEventListener('click', onSubmit)
+  }
+
+  function onOrderClick() {
+    const qty = parseInt(document.getElementById('quantity').value, 10)
+
+    if (!product) {
+      alert('商品を選択してください。')
+      return
+    }
+    if (!qty || qty < 1 || qty > 999) {
+      alert('数量は1〜999で入力してください。')
+      return
+    }
+
+    const note = document.getElementById('note').value.trim()
+    const subtotal = product.price * qty
+
+    const rows = [
+      ['店舗', store.name],
+      ['商品', product.name],
+      ['単価', `${product.price.toLocaleString()}円 / ${product.unit}`],
+      ['数量', `${qty} ${product.unit}`],
+      ['小計', `${subtotal.toLocaleString()}円`],
+    ]
+    if (note) rows.push(['備考', note])
+
+    document.getElementById('confirm-table').innerHTML = rows.map(([k, v]) =>
+      `<tr><td>${k}</td><td><strong>${v}</strong></td></tr>`
+    ).join('')
+
+    document.getElementById('confirm-overlay').classList.add('open')
+  }
+
+  async function onSubmit() {
+    const btn = document.getElementById('submit-btn')
+    btn.disabled = true
+    btn.textContent = '送信中...'
+
+    const qty  = parseInt(document.getElementById('quantity').value, 10)
+    const note = document.getElementById('note').value.trim()
+
+    const { error } = await supabase.from('wholesale_orders').insert({
+      store_id:   store.id,
+      product_id: product.id,
+      quantity:   qty,
+      note:       note || null,
+    })
+
+    if (error) {
+      alert('送信に失敗しました。もう一度お試しください。')
+      btn.disabled = false
+      btn.textContent = '送信する'
+      return
+    }
+
+    // 完了画面
+    document.getElementById('confirm-overlay').classList.remove('open')
+    document.getElementById('form-area').classList.add('hidden')
+
+    const now = new Date()
+    const subtotal = product.price * qty
+    document.getElementById('summary-box').innerHTML = [
+      `<p>📅 <strong>発注日時：</strong>${formatDate(now)}</p>`,
+      `<p>🏪 <strong>店舗：</strong>${store.name}</p>`,
+      `<p>📦 <strong>商品：</strong>${product.name}</p>`,
+      `<p>🔢 <strong>数量：</strong>${qty} ${product.unit}</p>`,
+      `<p>💴 <strong>小計：</strong>${subtotal.toLocaleString()}円</p>`,
+      note ? `<p>📝 <strong>備考：</strong>${note}</p>` : '',
+    ].filter(Boolean).join('')
+
+    document.getElementById('complete-view').classList.add('open')
+  }
+
+  init()
+</script>
+</body>
+</html>
