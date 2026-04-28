@@ -248,7 +248,7 @@
   const SUPABASE_URL  = 'https://pwuhhdzomaojjvwmjizw.supabase.co'
   const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3dWhoZHpvbWFvamp2d21qaXp3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyODUxNjksImV4cCI6MjA5MTg2MTE2OX0.3BaGea6Th9Z6k-KMkQFXC3wZWt8b1zqqLXlGPOecA-Y'
 
-  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON)
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON)
 
   const params     = new URLSearchParams(location.search)
   const storeId    = params.get('store') || ''
@@ -389,7 +389,7 @@
     const qty  = parseInt(document.getElementById('quantity').value, 10)
     const note = document.getElementById('note').value.trim()
 
-    const { error } = await supabase.from('wholesale_orders').insert({
+    const { error } = await sb.from('wholesale_orders').insert({
       store_id:   store.id,
       product_id: product.id,
       quantity:   qty,
