@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>商品マスタ管理</title>
+  <title>店舗マスタ管理</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -68,7 +68,7 @@
       color: #666;
       margin-bottom: 5px;
     }
-    .field input, .field textarea {
+    .field input {
       width: 100%;
       border: 1px solid #ddd;
       border-radius: 7px;
@@ -77,8 +77,7 @@
       font-family: inherit;
       outline: none;
     }
-    .field input:focus, .field textarea:focus { border-color: #4f8ef7; }
-    .field textarea { resize: vertical; min-height: 64px; }
+    .field input:focus { border-color: #4f8ef7; }
     .field .hint { font-size: 11px; color: #aaa; margin-top: 4px; }
 
     .btn {
@@ -93,8 +92,8 @@
     .btn-primary:hover { background: #1d4ed8; }
     .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
     .btn-sm { padding: 5px 12px; font-size: 13px; }
-    .btn-danger { background: #fee2e2; color: #dc2626; }
-    .btn-danger:hover { background: #fecaca; }
+    .btn-danger  { background: #fee2e2; color: #dc2626; }
+    .btn-danger:hover  { background: #fecaca; }
     .btn-success { background: #d1fae5; color: #065f46; }
     .btn-success:hover { background: #a7f3d0; }
 
@@ -122,7 +121,6 @@
     .badge-inactive { display:inline-block; padding:2px 8px; border-radius:20px; font-size:12px; background:#f3f4f6; color:#6b7280; }
 
     .slug { font-family: monospace; font-size: 13px; color: #555; }
-
     .empty { text-align: center; padding: 32px; color: #aaa; font-size: 14px; }
 
     /* ログイン画面 */
@@ -204,30 +202,23 @@
   </header>
 
   <main>
-    <!-- 商品追加フォーム -->
+    <!-- 店舗追加フォーム -->
     <div class="card">
-      <h2 id="form-title">商品を追加</h2>
+      <h2 id="form-title">店舗を追加</h2>
       <div class="form-grid">
         <div class="field">
-          <label>商品ID（スラッグ）*</label>
-          <input type="text" id="f-id" placeholder="cola-syrup">
-          <div class="hint">英数字・ハイフンのみ。一度設定したら変更不可。</div>
+          <label>店舗ID（スラッグ）*</label>
+          <input type="text" id="f-id" placeholder="cafe-yamada">
+          <div class="hint">英数字・ハイフンのみ。一度設定したら変更不可。QRコードのURLに使われます。</div>
         </div>
         <div class="field">
-          <label>商品名 *</label>
-          <input type="text" id="f-name" placeholder="クラフトコーラ原液">
-        </div>
-        <div class="field">
-          <label>単位 *</label>
-          <input type="text" id="f-unit" placeholder="本">
-        </div>
-        <div class="field">
-          <label>単価（円）*</label>
-          <input type="number" id="f-price" min="0" placeholder="3500">
+          <label>店舗名 *</label>
+          <input type="text" id="f-name" placeholder="山田カフェ">
         </div>
         <div class="field full">
-          <label>商品説明</label>
-          <textarea id="f-description" placeholder="発注フォームに表示される説明文"></textarea>
+          <label>メールアドレス *</label>
+          <input type="email" id="f-email" placeholder="yamada@example.com">
+          <div class="hint">発注があったときにこのアドレスにも通知メールが届きます。</div>
         </div>
       </div>
       <div class="form-footer">
@@ -237,23 +228,21 @@
       </div>
     </div>
 
-    <!-- 商品一覧 -->
+    <!-- 店舗一覧 -->
     <div class="card">
-      <h2>商品一覧</h2>
+      <h2>店舗一覧</h2>
       <table>
         <thead>
           <tr>
-            <th>商品ID</th>
-            <th>商品名</th>
-            <th>単位</th>
-            <th>単価</th>
-            <th>説明</th>
+            <th>店舗ID</th>
+            <th>店舗名</th>
+            <th>メールアドレス</th>
             <th>状態</th>
             <th>操作</th>
           </tr>
         </thead>
-        <tbody id="products-body">
-          <tr><td colspan="7" class="empty">読み込み中...</td></tr>
+        <tbody id="stores-body">
+          <tr><td colspan="5" class="empty">読み込み中...</td></tr>
         </tbody>
       </table>
     </div>
@@ -280,7 +269,7 @@
   function showApp() {
     document.getElementById('login-wrap').style.display = 'none'
     document.getElementById('app').style.display = 'block'
-    loadProducts()
+    loadStores()
   }
   function showLogin() {
     document.getElementById('login-wrap').style.display = 'flex'
@@ -300,40 +289,38 @@
   })
   document.getElementById('logout-btn').addEventListener('click', () => sb.auth.signOut())
 
-  // ── 商品一覧 ───────────────────────────────────────────────
-  async function loadProducts() {
+  // ── 店舗一覧 ───────────────────────────────────────────────
+  async function loadStores() {
     const { data, error } = await sb
-      .from('products')
+      .from('stores')
       .select('*')
       .order('created_at', { ascending: false })
 
-    const tbody = document.getElementById('products-body')
+    const tbody = document.getElementById('stores-body')
     if (error || !data) {
-      tbody.innerHTML = `<tr><td colspan="7" class="empty">読み込みに失敗しました</td></tr>`
+      tbody.innerHTML = `<tr><td colspan="5" class="empty">読み込みに失敗しました</td></tr>`
       return
     }
     if (data.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="7" class="empty">商品がありません</td></tr>`
+      tbody.innerHTML = `<tr><td colspan="5" class="empty">店舗がありません</td></tr>`
       return
     }
 
-    tbody.innerHTML = data.map(p => `
+    tbody.innerHTML = data.map(s => `
       <tr>
-        <td><span class="slug">${p.id}</span></td>
-        <td>${p.name}</td>
-        <td>${p.unit}</td>
-        <td>${p.price.toLocaleString()}円</td>
-        <td style="max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#888;font-size:13px">${p.description || '—'}</td>
+        <td><span class="slug">${s.id}</span></td>
+        <td>${s.name}</td>
+        <td>${s.email}</td>
         <td>
-          <span class="${p.active ? 'badge-active' : 'badge-inactive'}">
-            ${p.active ? '販売中' : '無効'}
+          <span class="${s.active ? 'badge-active' : 'badge-inactive'}">
+            ${s.active ? '有効' : '無効'}
           </span>
         </td>
         <td style="white-space:nowrap;display:flex;gap:6px">
-          <button class="btn btn-sm btn-primary" onclick="startEdit('${p.id}')">編集</button>
-          <button class="btn btn-sm ${p.active ? 'btn-danger' : 'btn-success'}"
-            onclick="toggleActive('${p.id}', ${p.active})">
-            ${p.active ? '無効化' : '有効化'}
+          <button class="btn btn-sm btn-primary" onclick="startEdit('${s.id}')">編集</button>
+          <button class="btn btn-sm ${s.active ? 'btn-danger' : 'btn-success'}"
+            onclick="toggleActive('${s.id}', ${s.active})">
+            ${s.active ? '無効化' : '有効化'}
           </button>
         </td>
       </tr>
@@ -342,19 +329,20 @@
 
   // ── 追加・編集 ─────────────────────────────────────────────
   document.getElementById('save-btn').addEventListener('click', async () => {
-    const id   = document.getElementById('f-id').value.trim()
-    const name = document.getElementById('f-name').value.trim()
-    const unit = document.getElementById('f-unit').value.trim()
-    const price = parseInt(document.getElementById('f-price').value, 10)
-    const desc  = document.getElementById('f-description').value.trim()
-    const msgEl = document.getElementById('form-msg')
+    const id    = document.getElementById('f-id').value.trim()
+    const name  = document.getElementById('f-name').value.trim()
+    const email = document.getElementById('f-email').value.trim()
 
-    if (!id || !name || !unit || isNaN(price)) {
+    if (!id || !name || !email) {
       showMsg('* の項目をすべて入力してください', 'err')
       return
     }
     if (!/^[a-z0-9-]+$/.test(id)) {
-      showMsg('商品IDは英小文字・数字・ハイフンのみ使用できます', 'err')
+      showMsg('店舗IDは英小文字・数字・ハイフンのみ使用できます', 'err')
+      return
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      showMsg('メールアドレスの形式が正しくありません', 'err')
       return
     }
 
@@ -363,40 +351,31 @@
 
     let error
     if (editingId) {
-      // 編集（IDは変更不可）
-      ;({ error } = await sb.from('products').update({
-        name, unit, price, description: desc || null
-      }).eq('id', editingId))
+      ;({ error } = await sb.from('stores').update({ name, email }).eq('id', editingId))
     } else {
-      // 新規追加
-      ;({ error } = await sb.from('products').insert({
-        id, name, unit, price, description: desc || null
-      }))
+      ;({ error } = await sb.from('stores').insert({ id, name, email }))
     }
 
     btn.disabled = false
     if (error) {
-      showMsg(error.code === '23505' ? 'その商品IDはすでに使われています' : '保存に失敗しました: ' + error.message, 'err')
+      showMsg(error.code === '23505' ? 'その店舗IDはすでに使われています' : '保存に失敗しました: ' + error.message, 'err')
       return
     }
 
-    showMsg(editingId ? '更新しました' : '商品を追加しました', 'ok')
+    showMsg(editingId ? '更新しました' : '店舗を追加しました', 'ok')
     clearForm()
-    loadProducts()
+    loadStores()
   })
 
   function startEdit(id) {
-    // 商品一覧から該当行のデータを取得して編集フォームに入力
-    sb.from('products').select('*').eq('id', id).single().then(({ data }) => {
+    sb.from('stores').select('*').eq('id', id).single().then(({ data }) => {
       if (!data) return
       editingId = id
-      document.getElementById('f-id').value          = data.id
-      document.getElementById('f-id').disabled       = true
-      document.getElementById('f-name').value        = data.name
-      document.getElementById('f-unit').value        = data.unit
-      document.getElementById('f-price').value       = data.price
-      document.getElementById('f-description').value = data.description || ''
-      document.getElementById('form-title').textContent = '商品を編集'
+      document.getElementById('f-id').value    = data.id
+      document.getElementById('f-id').disabled = true
+      document.getElementById('f-name').value  = data.name
+      document.getElementById('f-email').value = data.email
+      document.getElementById('form-title').textContent = '店舗を編集'
       document.getElementById('cancel-edit-btn').style.display = 'inline-block'
       document.getElementById('form-msg').textContent = ''
       window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -407,21 +386,19 @@
 
   function clearForm() {
     editingId = null
-    document.getElementById('f-id').value          = ''
-    document.getElementById('f-id').disabled       = false
-    document.getElementById('f-name').value        = ''
-    document.getElementById('f-unit').value        = ''
-    document.getElementById('f-price').value       = ''
-    document.getElementById('f-description').value = ''
-    document.getElementById('form-title').textContent = '商品を追加'
+    document.getElementById('f-id').value    = ''
+    document.getElementById('f-id').disabled = false
+    document.getElementById('f-name').value  = ''
+    document.getElementById('f-email').value = ''
+    document.getElementById('form-title').textContent = '店舗を追加'
     document.getElementById('cancel-edit-btn').style.display = 'none'
     document.getElementById('form-msg').textContent = ''
   }
 
   async function toggleActive(id, currentActive) {
-    const { error } = await sb.from('products').update({ active: !currentActive }).eq('id', id)
+    const { error } = await sb.from('stores').update({ active: !currentActive }).eq('id', id)
     if (error) { alert('更新に失敗しました。'); return }
-    loadProducts()
+    loadStores()
   }
 
   function showMsg(text, type) {
