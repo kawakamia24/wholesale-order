@@ -280,7 +280,7 @@
     }
 
     // 店舗情報を取得
-    const { data: storeData, error: storeErr } = await supabase
+    const { data: storeData, error: storeErr } = await sb
       .from('stores')
       .select('*')
       .eq('id', storeId)
@@ -298,7 +298,7 @@
 
     // 商品情報を取得
     if (productId) {
-      const { data: productData, error: productErr } = await supabase
+      const { data: productData, error: productErr } = await sb
         .from('products')
         .select('*')
         .eq('id', productId)
@@ -315,7 +315,7 @@
       document.getElementById('product-name').style.display = 'block'
     } else {
       // 全商品取得してセレクトボックスに表示
-      const { data: productsData } = await supabase
+      const { data: productsData } = await sb
         .from('products')
         .select('*')
         .eq('active', true)
